@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Корнуэльская комната - 3D сцена</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: white;
+        }
+        canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 300px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+        label {
+            display: block;
+            margin: 5px 0;
+        }
+        input[type="checkbox"], select {
+            margin-right: 10px;
+        }
+        h3 {
+            margin-top: 0;
+            color: #4fc3f7;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container input {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h3>Управление сценой</h3>
+
+        <div class="control-group">
+            <h4>Объект 1 (Куб)</h4>
+            <label>
+                <input type="checkbox" id="mirror1" onchange="updateMaterial(1)">
+                Зеркальность
+            </label>
+            <label>
+                <input type="checkbox" id="transparent1" onchange="updateMaterial(1)">
+                Прозрачность
+            </label>
+        </div>
+
+        <div class="control-group">
+            <h4>Объект 2 (Куб)</h4>
+            <label>
+                <input type="checkbox" id="mirror2" onchange="updateMaterial(2)">
+                Зеркальность
+            </label>
+            <label>
+                <input type="checkbox" id="transparent2" onchange="updateMaterial(2)">
+                Прозрачность
+            </label>
+        </div>
+
+        <div class="control-group">
+            <h4>Объект 3 (Шар)</h4>
+            <label>
+                <input type="checkbox" id="mirror3" onchange="updateMaterial(3)">
+                Зеркальность
+            </label>
+            <label>
+                <input type="checkbox" id="transparent3" onchange="updateMaterial(3)">
+                Прозрачность
+            </label>
+        </div>
+
+        <div class="control-group">
+            <h4>Зеркальная стена</h4>
+            <select id="mirrorWall" onchange="updateMirrorWall()">
+                <option value="none">Нет</option>
+                <option value="left">Левая</option>
+                <option value="right">Правая</option>
+                <option value="back">Задняя</option>
+                <option value="front">Передняя</option>
+                <option value="ceiling">Потолок</option>
+                <option value="floor">Пол</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <h4>Источники света</h4>
+            <label>
+                <input type="checkbox" id="light2toggle" checked onchange="toggleLight2()">
+                Второй источник
+            </label>
+            <div class="slider-container">
+                <label>Позиция X:</label>
+                <input type="range" id="light2X" min="-10" max="10" value="5" step="0.1" oninput="updateLight2()">
+            </div>
+            <div class="slider-container">
+                <label>Позиция Y:</label>
+                <input type="range" id="light2Y" min="-10" max="10" value="3" step="0.1" oninput="updateLight2()">
+            </div>
+            <div class="slider-container">
+                <label>Позиция Z:</label>
+                <input type="range" id="light2Z" min="-10" max="10" value="0" step="0.1" oninput="updateLight2()">
+            </div>
+        </div>
+
+    </div>
+
+    <script src="ind2.js"></script>
+</body>
+</html>
