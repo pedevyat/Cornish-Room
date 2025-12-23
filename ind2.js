@@ -1,238 +1,657 @@
-// Сцена
-const scene = new THREE.Scene();
+// ============================================
+// Основные параметры сцены
+// ============================================
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
 // Камера
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(10, 5, 10);
+const camera = {
+    position: { x: 0, y: 1, z: 8 },
+    lookAt: { x: 0, y: 1, z: 0 },
+    fov: 60
+};
 
-// Рендерер
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
-
-// Элементы управления мышью
-let isMouseDown = false;
-let mouseX = 0, mouseY = 0;
-let targetRotationX = 0, targetRotationY = 0;
-let currentRotationX = 0, currentRotationY = 0;
-
-// Параметры камеры
-let cameraDistance = 15;
-let minDistance = 5;
-let maxDistance = 30;
-
-// Создание Корнуэльской комнаты (куб)
-const roomSize = 20;
-const roomGeometry = new THREE.BoxGeometry(roomSize, roomSize, roomSize);
-
-// ИСХОДНЫЕ материалы для стен
-const originalWallMaterials = [
-    new THREE.MeshStandardMaterial({ color: 0xff4444, side: THREE.BackSide, roughness: 0.8, metalness: 0 }),
-    new THREE.MeshStandardMaterial({ color: 0x44ff44, side: THREE.BackSide, roughness: 0.8, metalness: 0 }),
-    new THREE.MeshStandardMaterial({ color: 0x4444ff, side: THREE.BackSide, roughness: 0.8, metalness: 0 }),
-    new THREE.MeshStandardMaterial({ color: 0xffff44, side: THREE.BackSide, roughness: 0.8, metalness: 0 }), // ПОЛ
-    new THREE.MeshStandardMaterial({ color: 0xff44ff, side: THREE.BackSide, roughness: 0.8, metalness: 0 }),
-    new THREE.MeshStandardMaterial({ color: 0x44ffff, side: THREE.BackSide, roughness: 0.8, metalness: 0 })
+// Свет
+const lights = [
+    {
+        position: { x: 0, y: 1.9, z: 0 },
+        color: { r: 1.0, g: 1.0, b: 1.0 },
+        intensity: 1.2
+    },
+    {
+        position: { x: 1.0, y: 1.5, z: -1.0 },
+        color: { r: 0.8, g: 0.8, b: 1.0 },
+        intensity: 0.7
+    }
 ];
 
-const room = new THREE.Mesh(roomGeometry, originalWallMaterials.slice()); // Используем копию
-scene.add(room);
-
 // Объекты сцены
-const objects = [];
+let objects = [];
 
-
-// Куб (обязательный)
-const cubeGeometry = new THREE.BoxGeometry(4, 4, 4); // Было (2, 2, 2) - увеличили в 2 раза
-const cubeMaterial = new THREE.MeshStandardMaterial({
-    color: 0xff0000,
-    roughness: 0.5,
-    metalness: 0
-});
-const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-cube.position.set(-6, -roomSize/2 + 2, 0); // Y = -10 + 2 (половина высоты увеличенного куба)
-cube.castShadow = true;
-cube.receiveShadow = true;
-scene.add(cube);
-objects.push({ mesh: cube, type: 'cube', id: 1 });
-
-// Куб (дополнительный)
-const cube2Geometry = new THREE.BoxGeometry(3, 6, 3); // Было (2, 4, 2)
-const cube2Material = new THREE.MeshStandardMaterial({
-    color: 0x00ff00,
-    roughness: 0.5,
-    metalness: 0
-});
-const cube2 = new THREE.Mesh(cube2Geometry, cube2Material);
-cube2.position.set(6, -roomSize/2 + 3, 0); // Y = -10 + 3 (половина высоты увеличенного куба)
-cube2.castShadow = true;
-cube2.receiveShadow = true;
-scene.add(cube2);
-objects.push({ mesh: cube2, type: 'cube', id: 2 });
-
-// Шар
-const sphereGeometry = new THREE.SphereGeometry(3, 32, 32);
-const sphereMaterial = new THREE.MeshStandardMaterial({
-    color: 0x0000ff,
-    roughness: 0.5,
-    metalness: 0
-});
-const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-sphere.position.set(0, -roomSize/2 + 3, -5); // Y = -10 + 3 (радиус увеличенного шара)
-sphere.castShadow = true;
-sphere.receiveShadow = true;
-scene.add(sphere);
-objects.push({ mesh: sphere, type: 'sphere', id: 3 });
-
-// Основной источник света
-const light1 = new THREE.PointLight(0xffffff, 0.8, 50);
-light1.position.set(0, 5, 0);
-light1.castShadow = true;
-light1.shadow.mapSize.width = 1024;
-light1.shadow.mapSize.height = 1024;
-scene.add(light1);
-
-// Второй источник света
-const light2 = new THREE.PointLight(0xffaa00, 0.6, 30);
-light2.position.set(5, 3, 0);
-light2.castShadow = true;
-scene.add(light2);
-
-// Обновление материалов объектов
-function updateMaterial(id) {
-    const obj = objects.find(o => o.id === id);
-    if (!obj) return;
-
-    const mirror = document.getElementById(`mirror${id}`).checked;
-    const transparent = document.getElementById(`transparent${id}`).checked;
-
-    let roughness = mirror ? 0.1 : 0.5;
-    let metalness = mirror ? 0.9 : 0;
-    let opacity = transparent ? 0.6 : 1;
-    let transparentMaterial = transparent;
-
-    obj.mesh.material = new THREE.MeshStandardMaterial({
-        color: obj.mesh.material.color,
-        roughness: roughness,
-        metalness: metalness,
-        opacity: opacity,
-        transparent: transparentMaterial
-    });
-}
-
-// функция обновления зеркальной стены
-function updateMirrorWall() {
-    const wall = document.getElementById('mirrorWall').value;
-
-    // Восстановление ВСЕХ стен к исходным материалам
-    for (let i = 0; i < 6; i++) {
-        room.material[i] = originalWallMaterials[i].clone();
+// ============================================
+// Векторная математика
+// ============================================
+class Vector3 {
+    constructor(x, y, z) {
+        this.x = x || 0;
+        this.y = y || 0;
+        this.z = z || 0;
     }
 
-    // Применение зеркальности к выбранной стене
-    if (wall !== 'none') {
-        let wallIndex;
-        switch(wall) {
-            case 'left': wallIndex = 0; break;
-            case 'right': wallIndex = 1; break;
-            case 'ceiling': wallIndex = 2; break;
-            case 'floor': wallIndex = 3; break;
-            case 'front': wallIndex = 4; break;
-            case 'back': wallIndex = 5; break;
+    add(v) {
+        return new Vector3(this.x + v.x, this.y + v.y, this.z + v.z);
+    }
+
+    subtract(v) {
+        return new Vector3(this.x - v.x, this.y - v.y, this.z - v.z);
+    }
+
+    multiply(s) {
+        return new Vector3(this.x * s, this.y * s, this.z * s);
+    }
+
+    dot(v) {
+        return this.x * v.x + this.y * v.y + this.z * v.z;
+    }
+
+    cross(v) {
+        return new Vector3(
+            this.y * v.z - this.z * v.y,
+            this.z * v.x - this.x * v.z,
+            this.x * v.y - this.y * v.x
+        );
+    }
+
+    length() {
+        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+    }
+
+    normalize() {
+        const len = this.length();
+        if (len === 0) return new Vector3(0, 0, 0);
+        return new Vector3(this.x / len, this.y / len, this.z / len);
+    }
+
+    distance(v) {
+        const dx = this.x - v.x;
+        const dy = this.y - v.y;
+        const dz = this.z - v.z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    // Для совместимости с обычными объектами
+    static fromObject(obj) {
+        return new Vector3(obj.x, obj.y, obj.z);
+    }
+}
+
+// ============================================
+// Классы объектов
+// ============================================
+class Material {
+    constructor(color, reflection = 0, transparency = 0, refractionIndex = 1.5) {
+        this.color = color;
+        this.reflection = reflection; // 0-1 коэффициент отражения
+        this.transparency = transparency; // 0-1 коэффициент прозрачности
+        this.refractionIndex = refractionIndex;
+        this.specular = 0.2; // Блик
+        this.shininess = 32; // Размер блика
+    }
+}
+
+class Sphere {
+    constructor(center, radius, material) {
+        this.center = center instanceof Vector3 ? center : new Vector3(center.x, center.y, center.z);
+        this.radius = radius;
+        this.material = material;
+        this.type = 'sphere';
+    }
+
+    intersect(rayOrigin, rayDirection) {
+        const rayOriginVec = rayOrigin instanceof Vector3 ? rayOrigin : Vector3.fromObject(rayOrigin);
+        const rayDirectionVec = rayDirection instanceof Vector3 ? rayDirection : Vector3.fromObject(rayDirection);
+
+        const oc = rayOriginVec.subtract(this.center);
+        const a = rayDirectionVec.dot(rayDirectionVec);
+        const b = 2.0 * oc.dot(rayDirectionVec);
+        const c = oc.dot(oc) - this.radius * this.radius;
+        const discriminant = b * b - 4 * a * c;
+
+        if (discriminant < 0) {
+            return null;
         }
 
-        room.material[wallIndex] = new THREE.MeshStandardMaterial({
-            color: 0x888888,
-            side: THREE.BackSide,
-            roughness: 0.1,
-            metalness: 0.9
-        });
-    }
+        const sqrtDisc = Math.sqrt(discriminant);
+        const t1 = (-b - sqrtDisc) / (2 * a);
+        const t2 = (-b + sqrtDisc) / (2 * a);
 
-    room.material.needsUpdate = true;
+        let t = null;
+        if (t1 > 0.001) {
+            t = t1;
+        } else if (t2 > 0.001) {
+            t = t2;
+        }
+
+        if (t === null) {
+            return null;
+        }
+
+        const point = rayOriginVec.add(rayDirectionVec.multiply(t));
+        const normal = point.subtract(this.center).normalize();
+        return { t, point, normal, object: this };
+    }
 }
 
-// Управление вторым источником света
+class Cube {
+    constructor(min, max, material) {
+        this.min = min instanceof Vector3 ? min : new Vector3(min.x, min.y, min.z);
+        this.max = max instanceof Vector3 ? max : new Vector3(max.x, max.y, max.z);
+        this.material = material;
+        this.type = 'cube';
+    }
+
+    intersect(rayOrigin, rayDirection) {
+        const rayOriginVec = rayOrigin instanceof Vector3 ? rayOrigin : Vector3.fromObject(rayOrigin);
+        const rayDirectionVec = rayDirection instanceof Vector3 ? rayDirection : Vector3.fromObject(rayDirection);
+
+        let tmin = (this.min.x - rayOriginVec.x) / rayDirectionVec.x;
+        let tmax = (this.max.x - rayOriginVec.x) / rayDirectionVec.x;
+
+        if (tmin > tmax) [tmin, tmax] = [tmax, tmin];
+
+        let tymin = (this.min.y - rayOriginVec.y) / rayDirectionVec.y;
+        let tymax = (this.max.y - rayOriginVec.y) / rayDirectionVec.y;
+
+        if (tymin > tymax) [tymin, tymax] = [tymax, tymin];
+
+        if (tmin > tymax || tymin > tmax) return null;
+
+        if (tymin > tmin) tmin = tymin;
+        if (tymax < tmax) tmax = tymax;
+
+        let tzmin = (this.min.z - rayOriginVec.z) / rayDirectionVec.z;
+        let tzmax = (this.max.z - rayOriginVec.z) / rayDirectionVec.z;
+
+        if (tzmin > tzmax) [tzmin, tzmax] = [tzmax, tzmin];
+
+        if (tmin > tzmax || tzmin > tmax) return null;
+
+        if (tzmin > tmin) tmin = tzmin;
+        if (tzmax < tmax) tmax = tzmax;
+
+        if (tmin > 0.001) {
+            const t = tmin;
+            const point = rayOriginVec.add(rayDirectionVec.multiply(t));
+
+            // Вычисляем нормаль
+            let normal;
+            const epsilon = 0.001;
+
+            if (Math.abs(point.x - this.min.x) < epsilon) {
+                normal = new Vector3(-1, 0, 0);
+            } else if (Math.abs(point.x - this.max.x) < epsilon) {
+                normal = new Vector3(1, 0, 0);
+            } else if (Math.abs(point.y - this.min.y) < epsilon) {
+                normal = new Vector3(0, -1, 0);
+            } else if (Math.abs(point.y - this.max.y) < epsilon) {
+                normal = new Vector3(0, 1, 0);
+            } else if (Math.abs(point.z - this.min.z) < epsilon) {
+                normal = new Vector3(0, 0, -1);
+            } else {
+                normal = new Vector3(0, 0, 1);
+            }
+
+            return { t, point, normal, object: this };
+        }
+
+        return null;
+    }
+}
+
+class Plane {
+    constructor(point, normal, material) {
+        this.point = point instanceof Vector3 ? point : new Vector3(point.x, point.y, point.z);
+        this.normal = (normal instanceof Vector3 ? normal : new Vector3(normal.x, normal.y, normal.z)).normalize();
+        this.material = material;
+        this.type = 'plane';
+    }
+
+    intersect(rayOrigin, rayDirection) {
+        const rayOriginVec = rayOrigin instanceof Vector3 ? rayOrigin : Vector3.fromObject(rayOrigin);
+        const rayDirectionVec = rayDirection instanceof Vector3 ? rayDirection : Vector3.fromObject(rayDirection);
+
+        const denom = this.normal.dot(rayDirectionVec);
+        if (Math.abs(denom) > 0.0001) {
+            const t = this.point.subtract(rayOriginVec).dot(this.normal) / denom;
+            if (t > 0.001) {
+                const point = rayOriginVec.add(rayDirectionVec.multiply(t));
+                return { t, point, normal: this.normal, object: this };
+            }
+        }
+        return null;
+    }
+}
+
+// ============================================
+// Инициализация сцены
+// ============================================
+function initScene() {
+    objects = [];
+
+    // Материалы
+    const redMaterial = new Material({ r: 0.8, g: 0.1, b: 0.1 });
+    const greenMaterial = new Material({ r: 0.1, g: 0.8, b: 0.1 });
+    const whiteMaterial = new Material({ r: 0.9, g: 0.9, b: 0.9 });
+    const blueMaterial = new Material({ r: 0.2, g: 0.3, b: 0.8 });
+    const yellowMaterial = new Material({ r: 0.9, g: 0.9, b: 0.2 });
+    const purpleMaterial = new Material({ r: 0.7, g: 0.2, b: 0.8 });
+
+    // Стены Cornell Box (5x5x5 метров)
+    // Левая стена (красная)
+    objects.push(new Plane(
+        new Vector3(-2.5, 0, 0),
+        new Vector3(1, 0, 0),
+        redMaterial
+    ));
+
+    // Правая стена (зеленая)
+    objects.push(new Plane(
+        new Vector3(2.5, 0, 0),
+        new Vector3(-1, 0, 0),
+        greenMaterial
+    ));
+
+    // Задняя стена (белая)
+    objects.push(new Plane(
+        new Vector3(0, 0, -2.5),
+        new Vector3(0, 0, 1),
+        whiteMaterial
+    ));
+
+    // Пол (белый)
+    objects.push(new Plane(
+        new Vector3(0, -2.5, 0),
+        new Vector3(0, 1, 0),
+        whiteMaterial
+    ));
+
+    // Потолок (белый)
+    objects.push(new Plane(
+        new Vector3(0, 2.5, 0),
+        new Vector3(0, -1, 0),
+        whiteMaterial
+    ));
+
+    // Начальные объекты
+    // 1. Шар (желтый, непрозрачный, неотражающий)
+    objects.push(new Sphere(
+        new Vector3(-1.0, -1.5, -1.0),
+        0.7,
+        yellowMaterial
+    ));
+
+    // 2. Куб (синий)
+    objects.push(new Cube(
+        new Vector3(0.5, -2.5, 0.0),
+        new Vector3(1.5, -1.5, 1.0),
+        blueMaterial
+    ));
+
+    // 3. Второй шар (пурпурный)
+    objects.push(new Sphere(
+        new Vector3(-0.5, -1.2, 0.5),
+        0.5,
+        purpleMaterial
+    ));
+
+    updateObjectCount();
+}
+
+// ============================================
+// Функции рендеринга
+// ============================================
+function traceRay(rayOrigin, rayDirection, depth = 0, maxDepth = 3) {
+    if (depth > maxDepth) {
+        return { r: 0, g: 0, b: 0 };
+    }
+
+    // Находим ближайшее пересечение
+    let closestIntersection = null;
+    let closestDistance = Infinity;
+
+    for (const obj of objects) {
+        const intersection = obj.intersect(rayOrigin, rayDirection);
+        if (intersection && intersection.t < closestDistance && intersection.t > 0.001) {
+            closestDistance = intersection.t;
+            closestIntersection = intersection;
+        }
+    }
+
+    if (!closestIntersection) {
+        // Фон - темно-серый вместо черного
+        return { r: 0.05, g: 0.05, b: 0.1 };
+    }
+
+    const { point, normal, object } = closestIntersection;
+    const material = object.material;
+
+    // Вычисляем локальное освещение
+    let localColor = { r: 0, g: 0, b: 0 };
+
+    // Ambient свет
+    const ambient = 0.15;
+    localColor.r = material.color.r * ambient;
+    localColor.g = material.color.g * ambient;
+    localColor.b = material.color.b * ambient;
+
+    // Проверяем каждый источник света
+    for (const light of lights) {
+        const lightPos = Vector3.fromObject(light.position);
+        const lightDir = lightPos.subtract(point).normalize();
+        const lightDistance = point.distance(lightPos);
+
+        // Проверяем тени
+        let inShadow = false;
+        const shadowRayOrigin = point.add(normal.multiply(0.001));
+
+        for (const obj of objects) {
+            const shadowIntersection = obj.intersect(shadowRayOrigin, lightDir);
+            if (shadowIntersection && shadowIntersection.t > 0.001 && shadowIntersection.t < lightDistance) {
+                inShadow = true;
+                break;
+            }
+        }
+
+        if (!inShadow) {
+            // Диффузное освещение
+            const diffuse = Math.max(0, normal.dot(lightDir));
+
+            localColor.r += material.color.r * diffuse * light.intensity * light.color.r;
+            localColor.g += material.color.g * diffuse * light.intensity * light.color.g;
+            localColor.b += material.color.b * diffuse * light.intensity * light.color.b;
+
+            // Спеkулярное освещение (блики)
+            const viewDir = rayOrigin.subtract(point).normalize();
+            const reflectDir = lightDir.multiply(-1).subtract(normal.multiply(2 * lightDir.multiply(-1).dot(normal))).normalize();
+            const specular = Math.pow(Math.max(0, viewDir.dot(reflectDir)), material.shininess);
+
+            localColor.r += material.specular * specular * light.intensity * light.color.r;
+            localColor.g += material.specular * specular * light.intensity * light.color.g;
+            localColor.b += material.specular * specular * light.intensity * light.color.b;
+        }
+    }
+
+    // Рекурсивные лучи для отражения и преломления
+    let reflectedColor = { r: 0, g: 0, b: 0 };
+    let refractedColor = { r: 0, g: 0, b: 0 };
+
+    // Отражение
+    if (material.reflection > 0 && depth < maxDepth) {
+        const reflectDir = rayDirection.subtract(normal.multiply(2 * rayDirection.dot(normal))).normalize();
+        const reflectOrigin = point.add(normal.multiply(0.001));
+        reflectedColor = traceRay(reflectOrigin, reflectDir, depth + 1, maxDepth);
+    }
+
+    // Преломление (прозрачность)
+    if (material.transparency > 0 && depth < maxDepth) {
+        const ior = material.refractionIndex;
+        const cosi = -rayDirection.dot(normal);
+        const etai = 1;
+        const etat = ior;
+
+        let n = normal;
+        let eta = etai / etat;
+
+        if (cosi < 0) {
+            eta = 1 / eta;
+            n = normal.multiply(-1);
+        }
+
+        const k = 1 - eta * eta * (1 - cosi * cosi);
+
+        if (k >= 0) {
+            const refractedDir = rayDirection.multiply(eta).add(n.multiply(eta * cosi - Math.sqrt(k)));
+            const refractedOrigin = point.subtract(n.multiply(0.001));
+            refractedColor = traceRay(refractedOrigin, refractedDir, depth + 1, maxDepth);
+        }
+    }
+
+    // Комбинируем цвета
+    const reflectionFactor = material.reflection;
+    const transparencyFactor = material.transparency;
+    const diffuseFactor = 1 - reflectionFactor - transparencyFactor;
+
+    const finalColor = {
+        r: localColor.r * diffuseFactor + reflectedColor.r * reflectionFactor + refractedColor.r * transparencyFactor,
+        g: localColor.g * diffuseFactor + reflectedColor.g * reflectionFactor + refractedColor.g * transparencyFactor,
+        b: localColor.b * diffuseFactor + reflectedColor.b * reflectionFactor + refractedColor.b * transparencyFactor
+    };
+
+    // Ограничиваем значения цвета
+    finalColor.r = Math.min(1, Math.max(0, finalColor.r));
+    finalColor.g = Math.min(1, Math.max(0, finalColor.g));
+    finalColor.b = Math.min(1, Math.max(0, finalColor.b));
+
+    return finalColor;
+}
+
+function renderScene() {
+    const status = document.getElementById('status');
+    status.textContent = 'Рендеринг...';
+
+    const startTime = Date.now();
+    const aa = parseInt(document.getElementById('antialiasing').value);
+    const maxDepth = parseInt(document.getElementById('maxDepth').value);
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Очистка канваса
+    ctx.fillStyle = '#0a1929';
+    ctx.fillRect(0, 0, width, height);
+
+    // Создаем буфер для данных изображения
+    const imageData = ctx.createImageData(width, height);
+    const data = imageData.data;
+
+    // Предварительные вычисления для камеры
+    const aspectRatio = width / height;
+    const fovRad = camera.fov * Math.PI / 180;
+    const scale = Math.tan(fovRad / 2);
+
+    const cameraPos = new Vector3(camera.position.x, camera.position.y, camera.position.z);
+
+    // Простой рендеринг без сложной логики прогресса
+    let renderedRows = 0;
+    const totalRows = height;
+    const updateInterval = Math.max(1, Math.floor(height / 100)); // Обновляем каждые 1%
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            let color = { r: 0, g: 0, b: 0 };
+
+            // Антиалиасинг
+            for (let dy = 0; dy < aa; dy++) {
+                for (let dx = 0; dx < aa; dx++) {
+                    const pixelX = x + (dx / aa);
+                    const pixelY = y + (dy / aa);
+
+                    // Преобразуем координаты пикселя в координаты сцены
+                    const rayX = (2 * pixelX / width - 1) * aspectRatio * scale;
+                    const rayY = (1 - 2 * pixelY / height) * scale;
+
+                    // Создаем луч из камеры
+                    const rayDirection = new Vector3(rayX, rayY, -1).normalize();
+
+                    // Трассируем луч
+                    const pixelColor = traceRay(cameraPos, rayDirection, 0, maxDepth);
+
+                    color.r += pixelColor.r;
+                    color.g += pixelColor.g;
+                    color.b += pixelColor.b;
+                }
+            }
+
+            // Усредняем для антиалиасинга
+            const samples = aa * aa;
+            const index = (y * width + x) * 4;
+
+            data[index] = Math.min(255, Math.floor(color.r / samples * 255));     // R
+            data[index + 1] = Math.min(255, Math.floor(color.g / samples * 255)); // G
+            data[index + 2] = Math.min(255, Math.floor(color.b / samples * 255)); // B
+            data[index + 3] = 255; // Alpha
+        }
+
+        renderedRows++;
+
+        // Обновляем прогресс и отображаем частичный результат
+        if (y % updateInterval === 0 || y === height - 1) {
+            const progress = Math.floor((renderedRows / totalRows) * 100);
+            status.textContent = `Рендеринг... ${progress}%`;
+
+            // Показываем текущий прогресс на канвасе
+            ctx.putImageData(imageData, 0, 0);
+        }
+    }
+
+    // Финальный рендеринг
+    ctx.putImageData(imageData, 0, 0);
+
+    const renderTime = Date.now() - startTime;
+    status.textContent = `Готово! Время рендеринга: ${renderTime}мс`;
+}
+
+// ============================================
+// Управление материалами
+// ============================================
+function updateMaterials() {
+    const mirrorEnabled = document.getElementById('mirrorEnabled').checked;
+    const transparencyEnabled = document.getElementById('transparencyEnabled').checked;
+
+    // Обновляем материалы всех объектов (кроме стен)
+    for (const obj of objects) {
+        if (obj.type !== 'plane') {
+            if (mirrorEnabled) {
+                obj.material.reflection = 0.8;
+                obj.material.transparency = 0;
+            } else if (transparencyEnabled) {
+                obj.material.reflection = 0;
+                obj.material.transparency = 0.8;
+                obj.material.refractionIndex = 1.5;
+            } else {
+                obj.material.reflection = 0;
+                obj.material.transparency = 0;
+            }
+        }
+    }
+
+    renderScene();
+}
+
+function updateMirrorWall() {
+    const wallType = document.getElementById('mirrorWall').value;
+
+    // Сбрасываем все стены к обычным материалам
+    for (const obj of objects) {
+        if (obj.type === 'plane') {
+            // Определяем, какая это стена
+            const normal = obj.normal;
+            let isMirrorWall = false;
+
+            if (wallType === 'left' && normal.x > 0.9) isMirrorWall = true;
+            if (wallType === 'right' && normal.x < -0.9) isMirrorWall = true;
+            if (wallType === 'back' && normal.z > 0.9) isMirrorWall = true;
+            if (wallType === 'floor' && normal.y > 0.9) isMirrorWall = true;
+            if (wallType === 'ceiling' && normal.y < -0.9) isMirrorWall = true;
+
+            if (isMirrorWall) {
+                obj.material.reflection = 0.9;
+                obj.material.color = { r: 0.3, g: 0.3, b: 0.3 };
+            } else {
+                obj.material.reflection = 0;
+                // Восстанавливаем оригинальные цвета
+                if (normal.x > 0.9) obj.material.color = { r: 0.8, g: 0.1, b: 0.1 }; // Красная
+                if (normal.x < -0.9) obj.material.color = { r: 0.1, g: 0.8, b: 0.1 }; // Зеленая
+                if (Math.abs(normal.y) > 0.9 || Math.abs(normal.z) > 0.9) {
+                    obj.material.color = { r: 0.9, g: 0.9, b: 0.9 }; // Белая
+                }
+            }
+        }
+    }
+
+    renderScene();
+}
+
+// ============================================
+// Управление источниками света
+// ============================================
 function toggleLight2() {
-    const enabled = document.getElementById('light2toggle').checked;
-    light2.visible = enabled;
+    const secondLightEnabled = document.getElementById('light2toggle').checked;
+
+    if (!secondLightEnabled) {
+        // Удаляем второй источник света
+        if (lights.length > 1) {
+            lights.pop();
+        }
+    } else {
+        // Добавляем второй источник света
+        if (lights.length === 1) {
+            const x = parseFloat(document.getElementById('light2X').value);
+            const y = parseFloat(document.getElementById('light2Y').value);
+            const z = parseFloat(document.getElementById('light2Z').value);
+
+            lights.push({
+                position: { x, y, z },
+                color: { r: 0.8, g: 0.8, b: 1.0 },
+                intensity: 0.7
+            });
+        }
+    }
+
+    renderScene();
 }
 
 function updateLight2() {
-    const x = parseFloat(document.getElementById('light2X').value);
-    const y = parseFloat(document.getElementById('light2Y').value);
-    const z = parseFloat(document.getElementById('light2Z').value);
+    if (lights.length > 1) {
+        const x = parseFloat(document.getElementById('light2X').value);
+        const y = parseFloat(document.getElementById('light2Y').value);
+        const z = parseFloat(document.getElementById('light2Z').value);
 
-    light2.position.set(x, y, z);
+        lights[1].position = { x, y, z };
+        updateSliderValues();
+
+        if (document.getElementById('light2toggle').checked) {
+            renderScene();
+        }
+    }
 }
 
-// Обработчики мыши
-document.addEventListener('mousedown', (event) => {
-    isMouseDown = true;
-    mouseX = event.clientX;
-    mouseY = event.clientY;
-});
-
-document.addEventListener('mouseup', () => {
-    isMouseDown = false;
-});
-
-document.addEventListener('mousemove', (event) => {
-    if (!isMouseDown) return;
-
-    const deltaX = event.clientX - mouseX;
-    const deltaY = event.clientY - mouseY;
-
-    targetRotationY += deltaX * 0.01;
-    targetRotationX += deltaY * 0.01;
-
-    targetRotationX = Math.max(-Math.PI/2, Math.min(Math.PI/2, targetRotationX));
-
-    mouseX = event.clientX;
-    mouseY = event.clientY;
-});
-
-document.addEventListener('wheel', (event) => {
-    event.preventDefault();
-
-    cameraDistance += event.deltaY * 0.001 * cameraDistance;
-    cameraDistance = Math.max(minDistance, Math.min(maxDistance, cameraDistance));
-}, { passive: false });
-
-// Функция обновления позиции камеры
-function updateCameraPosition() {
-    camera.position.x = cameraDistance * Math.sin(currentRotationY) * Math.cos(currentRotationX);
-    camera.position.y = cameraDistance * Math.sin(currentRotationX);
-    camera.position.z = cameraDistance * Math.cos(currentRotationY) * Math.cos(currentRotationX);
-
-    camera.lookAt(0, 0, 0);
+// ============================================
+// Вспомогательные функции
+// ============================================
+function updateObjectCount() {
+    const objectCount = objects.filter(obj => obj.type !== 'plane').length;
+    document.getElementById('objectCount').textContent = objectCount;
 }
 
-// Анимация
-function animate() {
-    requestAnimationFrame(animate);
+// ============================================
+// Экспорт функций в глобальную область видимости
+// ============================================
+window.initScene = initScene;
+window.renderScene = renderScene;
+window.updateMaterials = updateMaterials;
+window.updateMirrorWall = updateMirrorWall;
+window.toggleLight2 = toggleLight2;
+window.updateLight2 = updateLight2;
 
-    currentRotationX += (targetRotationX - currentRotationX) * 0.05;
-    currentRotationY += (targetRotationY - currentRotationY) * 0.05;
+// ============================================
+// Инициализация при загрузке
+// ============================================
+window.onload = function() {
+    // Устанавливаем начальное разрешение
+    const canvas = document.getElementById('canvas');
+    canvas.width = 800;
+    canvas.height = 600;
 
-    updateCameraPosition();
-
-    // Вращение
-    cube.rotation.y += 0.01;
-    cube2.rotation.x += 0.01;
-    sphere.rotation.y += 0.01;
-
-    renderer.render(scene, camera);
-}
-
-// Обработка изменения размера окна
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// Запуск
-animate();
+    initScene();
+    renderScene();
+};
