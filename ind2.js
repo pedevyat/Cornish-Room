@@ -4,6 +4,11 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
+// Фиксированные настройки качества
+const FIXED_RESOLUTION = { width: 800, height: 600 };
+const FIXED_ANTIALIASING = 2; // Средний антиалиасинг (2x)
+const FIXED_MAX_DEPTH = 3;    // Глубина рекурсии
+
 // Камера
 const camera = {
     position: { x: 0, y: 1, z: 8 },
@@ -268,7 +273,7 @@ function initScene() {
         whiteMaterial
     ));
 
-    // Пол (белый)
+    // Пол (белый) - высота -2.5
     objects.push(new Plane(
         new Vector3(0, -2.5, 0),
         new Vector3(0, 1, 0),
@@ -285,33 +290,31 @@ function initScene() {
     // Начальные объекты
     // 1. Шар (желтый, непрозрачный, неотражающий)
     objects.push(new Sphere(
-        new Vector3(-1.0, -1.5, -1.0),
+        new Vector3(-1.0, -1.8, -1.0),  // Y: -2.5 + 0.7 = -1.8 (лежит на полу)
         0.7,
         yellowMaterial
     ));
 
     // 2. Куб (синий)
     objects.push(new Cube(
-        new Vector3(0.5, -2.5, 0.0),
-        new Vector3(1.5, -1.5, 1.0),
+        new Vector3(0.5, -2.5, 0.0),    // Нижняя точка куба на полу
+        new Vector3(1.5, -1.5, 1.0),    // Верхняя точка куба (высота 1.0)
         blueMaterial
     ));
 
-    // 3. Второй шар (пурпурный)
+    // 3. Фиолетовый шар лежит на полу рядом с кубом
     objects.push(new Sphere(
-        new Vector3(-0.5, -1.2, 0.5),
+        new Vector3(-0.5, -2.0, 0.5),   // Y: -2.5 + 0.5 = -2.0 (лежит на полу)
         0.5,
         purpleMaterial
     ));
-
-    updateObjectCount();
 }
 
 // ============================================
 // Функции рендеринга
 // ============================================
-function traceRay(rayOrigin, rayDirection, depth = 0, maxDepth = 3) {
-    if (depth > maxDepth) {
+function traceRay(rayOrigin, rayDirection, depth = 0) {
+    if (depth > FIXED_MAX_DEPTH) {
         return { r: 0, g: 0, b: 0 };
     }
 
@@ -386,14 +389,14 @@ function traceRay(rayOrigin, rayDirection, depth = 0, maxDepth = 3) {
     let refractedColor = { r: 0, g: 0, b: 0 };
 
     // Отражение
-    if (material.reflection > 0 && depth < maxDepth) {
+    if (material.reflection > 0 && depth < FIXED_MAX_DEPTH) {
         const reflectDir = rayDirection.subtract(normal.multiply(2 * rayDirection.dot(normal))).normalize();
         const reflectOrigin = point.add(normal.multiply(0.001));
-        reflectedColor = traceRay(reflectOrigin, reflectDir, depth + 1, maxDepth);
+        reflectedColor = traceRay(reflectOrigin, reflectDir, depth + 1);
     }
 
     // Преломление (прозрачность)
-    if (material.transparency > 0 && depth < maxDepth) {
+    if (material.transparency > 0 && depth < FIXED_MAX_DEPTH) {
         const ior = material.refractionIndex;
         const cosi = -rayDirection.dot(normal);
         const etai = 1;
@@ -412,7 +415,7 @@ function traceRay(rayOrigin, rayDirection, depth = 0, maxDepth = 3) {
         if (k >= 0) {
             const refractedDir = rayDirection.multiply(eta).add(n.multiply(eta * cosi - Math.sqrt(k)));
             const refractedOrigin = point.subtract(n.multiply(0.001));
-            refractedColor = traceRay(refractedOrigin, refractedDir, depth + 1, maxDepth);
+            refractedColor = traceRay(refractedOrigin, refractedDir, depth + 1);
         }
     }
 
@@ -440,8 +443,8 @@ function renderScene() {
     status.textContent = 'Рендеринг...';
 
     const startTime = Date.now();
-    const aa = parseInt(document.getElementById('antialiasing').value);
-    const maxDepth = parseInt(document.getElementById('maxDepth').value);
+    const aa = FIXED_ANTIALIASING; // Используем фиксированное значение
+    const maxDepth = FIXED_MAX_DEPTH; // Используем фиксированное значение
     const width = canvas.width;
     const height = canvas.height;
 
@@ -483,7 +486,7 @@ function renderScene() {
                     const rayDirection = new Vector3(rayX, rayY, -1).normalize();
 
                     // Трассируем луч
-                    const pixelColor = traceRay(cameraPos, rayDirection, 0, maxDepth);
+                    const pixelColor = traceRay(cameraPos, rayDirection, 0);
 
                     color.r += pixelColor.r;
                     color.g += pixelColor.g;
@@ -626,14 +629,6 @@ function updateLight2() {
 }
 
 // ============================================
-// Вспомогательные функции
-// ============================================
-function updateObjectCount() {
-    const objectCount = objects.filter(obj => obj.type !== 'plane').length;
-    document.getElementById('objectCount').textContent = objectCount;
-}
-
-// ============================================
 // Экспорт функций в глобальную область видимости
 // ============================================
 window.initScene = initScene;
@@ -648,9 +643,8 @@ window.updateLight2 = updateLight2;
 // ============================================
 window.onload = function() {
     // Устанавливаем начальное разрешение
-    const canvas = document.getElementById('canvas');
-    canvas.width = 800;
-    canvas.height = 600;
+    canvas.width = FIXED_RESOLUTION.width;
+    canvas.height = FIXED_RESOLUTION.height;
 
     initScene();
     renderScene();
